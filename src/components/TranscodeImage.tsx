@@ -26,7 +26,7 @@ export function TranscodeImage({ target }: Props) {
   });
 
   return (
-    <Flex vertical>
+    <Flex vertical justify="center" align="center" style={{ minHeight: 400 }}>
       {outputRequest.status === 'pending' ? (
         <Spin />
       ) : outputRequest.status === 'success' ? (
