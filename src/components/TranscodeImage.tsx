@@ -1,7 +1,6 @@
 import { transcodeToWebP } from '@/ffmpeg/ffmpeg-webp';
-import { AlertOutlined } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
-import { Flex, Spin, Typography } from 'antd';
+import { useSuspenseQuery } from '@tanstack/react-query';
+import { Flex, Typography } from 'antd';
 
 export interface TranscodeTarget {
   quality: number;
@@ -14,7 +13,7 @@ interface Props {
 }
 
 export default function TranscodeImage({ target }: Props) {
-  const outputRequest = useQuery({
+  const outputRequest = useSuspenseQuery({
     queryKey: ['transcode', target],
     queryFn: async () => {
       const output = await transcodeToWebP(target.original, { lossless: target.lossless, quality: target.quality });
@@ -30,11 +29,8 @@ export default function TranscodeImage({ target }: Props) {
       vertical
       justify="center"
       align="center"
-      style={{ minHeight: 400 }}
     >
-      {outputRequest.status === 'pending' ? (
-        <Spin />
-      ) : outputRequest.status === 'success' ? (
+      {outputRequest.status === 'success' ? (
         <>
           <img
             src={outputRequest.data.url}
@@ -47,9 +43,7 @@ export default function TranscodeImage({ target }: Props) {
             {target.quality} %
           </Typography.Text>
         </>
-      ) : (
-        <AlertOutlined />
-      )}
+      ) : null}
     </Flex>
   );
 }

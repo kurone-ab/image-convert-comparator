@@ -1,7 +1,8 @@
+import AsyncBoundary from '@/components/AsyncBoundary';
 import { type TranscodeTarget } from '@/components/TranscodeImage';
 import { imageMimeTypes, isImageMimeType } from '@/enums/image-mime-type';
 import { InboxOutlined } from '@ant-design/icons';
-import { Button, Col, Flex, InputNumber, message, Row, Switch, Typography, Upload } from 'antd';
+import { Button, Col, Flex, InputNumber, message, Row, Spin, Switch, Typography, Upload } from 'antd';
 import { lazy, useState } from 'react';
 
 const TranscodeImage = lazy(() => import('@/components/TranscodeImage'));
@@ -88,8 +89,11 @@ export default function IndexPage({ ready }: Props) {
           <Col
             span={8}
             key={target.quality}
+            style={{ minHeight: 400 }}
           >
-            <TranscodeImage target={target} />
+            <AsyncBoundary loading={<Spin />}>
+              <TranscodeImage target={target} />
+            </AsyncBoundary>
           </Col>
         ))}
       </Row>
