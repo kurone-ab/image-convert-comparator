@@ -1,5 +1,6 @@
 import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react-swc';
+import tsconfigPaths from 'vite-tsconfig-paths'
 
 const viteServerConfig: Plugin = {
   name: 'log-request-middleware',
@@ -16,7 +17,7 @@ const viteServerConfig: Plugin = {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), viteServerConfig],
+  plugins: [react(), tsconfigPaths(), viteServerConfig],
   optimizeDeps: {
     exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
   },
