@@ -1,10 +1,16 @@
-import { TranscodeImage, TranscodeTarget } from '@/components/TranscodeImage';
+import { type TranscodeTarget } from '@/components/TranscodeImage';
 import { imageMimeTypes, isImageMimeType } from '@/enums/image-mime-type';
 import { InboxOutlined } from '@ant-design/icons';
 import { Button, Col, Flex, InputNumber, message, Row, Switch, Typography, Upload } from 'antd';
-import { useState } from 'react';
+import { lazy, useState } from 'react';
 
-export function IndexPage() {
+const TranscodeImage = lazy(() => import('@/components/TranscodeImage'));
+
+interface Props {
+  ready: boolean;
+}
+
+export default function IndexPage({ ready }: Props) {
   const [image, setImage] = useState<File | null>(null);
   const [targets, setTargets] = useState<TranscodeTarget[]>([]);
 
@@ -69,6 +75,8 @@ export function IndexPage() {
             <Button
               type="primary"
               onClick={start}
+              disabled={!image}
+              loading={!ready}
             >
               Convert
             </Button>

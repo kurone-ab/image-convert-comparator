@@ -1,21 +1,43 @@
 import { ImageMimeType, isImageMimeType } from '@/enums/image-mime-type';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { toBlobURL } from '@ffmpeg/util';
+import { message } from 'antd';
 
 export interface TranscodeOptions {
   quality: number;
   lossless: boolean;
 }
 
+type Thread = 'single' | 'multi';
+
+const singleThread = new FFmpeg();
 const loadSingleThreadFFmpeg = async () => {
-  const ffmpeg = new FFmpeg();
-  await ffmpeg.load({
+  await singleThread.load({
     coreURL: `${import.meta.env.VITE_R2_HOST}/ffmpeg/single/ffmpeg-core.js`,
     wasmURL: `${import.meta.env.VITE_R2_HOST}/ffmpeg/single/ffmpeg-core.wasm`,
   });
-  return ffmpeg;
+  return singleThread;
+};
+const multiThread = new FFmpeg();
+const loadMultiThreadFFmpeg = async () => {
+  await multiThread.load({
+    coreURL: `${import.meta.env.VITE_R2_HOST}/ffmpeg/multi/ffmpeg-core.js`,
+    wasmURL: `${import.meta.env.VITE_R2_HOST}/ffmpeg/multi/ffmpeg-core.wasm`,
+    workerURL: await toBlobURL(`${import.meta.env.VITE_R2_HOST}/ffmpeg/multi/ffmpeg-core.worker.js`, 'text/javascript'),
+  });
+  return multiThread;
 };
 
-const ffmpeg = await loadSingleThreadFFmpeg();
+export const prepareFFmpeg = () => Promise.all([loadSingleThreadFFmpeg(), loadMultiThreadFFmpeg()]);
+
+const getFFmpeg = (thread: Thread) => {
+  const ffmpeg = thread === 'multi' ? multiThread : singleThread;
+  if (!ffmpeg.loaded) {
+    void message.error('FFmpeg not loaded');
+    throw new Error('FFmpeg not loaded');
+  }
+  return ffmpeg;
+};
 
 const convertToUint8Array = (file: File) => {
   return new Promise<Uint8Array>((resolve, reject) => {
@@ -30,7 +52,15 @@ const convertToUint8Array = (file: File) => {
   });
 };
 
+const decideThread = (file: File): Thread => {
+  if (!isImageMimeType(file.type)) return 'single';
+  const { type } = file;
+  if (type === ImageMimeType.png) return 'single';
+  return 'multi';
+};
+
 const writeImage = async (image: File) => {
+  const ffmpeg = getFFmpeg(decideThread(image));
   const { type } = image;
   if (!isImageMimeType(type)) {
     throw new Error(`Unsupported image type: ${type}`);
@@ -43,8 +73,6 @@ const writeImage = async (image: File) => {
   if (!imageExists) {
     await ffmpeg.writeFile(image.name, await convertToUint8Array(image));
   }
-
-  return ffmpeg;
 };
 
 interface ExecutorArgs extends TranscodeOptions {
@@ -60,7 +88,8 @@ const createExecutor = ({ input, quality, lossless, output }: ExecutorArgs) => {
 };
 
 export const transcodeToWebP = async (image: File, options: TranscodeOptions) => {
-  const ffmpeg = await writeImage(image);
+  const ffmpeg = await getFFmpeg(decideThread(image));
+  await writeImage(image);
   const input = image.name;
   const output = `${image.name.replace(/\.[^/.]+$/, '')}-q${options.quality}-${options.lossless ? 'lossless' : 'lossy'}.webp`;
   const args = createExecutor({
