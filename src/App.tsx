@@ -1,8 +1,7 @@
-import { Button, Col, Flex, InputNumber, message, Row, Switch, Typography, Upload } from 'antd';
+import { imageMimeTypes, isImageMimeType } from '@/enums/image-mime-type';
 import { InboxOutlined } from '@ant-design/icons';
+import { Button, Col, Flex, InputNumber, message, Row, Switch, Typography, Upload } from 'antd';
 import { useState } from 'react';
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { toBlobURL } from '@ffmpeg/util';
 
 function App() {
   const [loading, setLoading] = useState(false);
@@ -12,35 +11,21 @@ function App() {
   const [lossless, setLossless] = useState(false);
   const [qualityStep, setQualityStep] = useState(5);
 
-  const [ffmpeg] = useState(new FFmpeg());
-
-  const loadFFmpeg = async () => {
-    setLoading(true);
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`/scripts/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`/scripts/ffmpeg-core.wasm`, 'application/wasm'),
-    });
-    setLoading(false);
-  };
-
   const start = async (): Promise<void> => {
     if (!image) {
       return void message.error('Please select an image');
     }
-    if (!ffmpeg.loaded) {
-      await loadFFmpeg();
-    }
     setLoading(true);
-    await ffmpeg.writeFile(image.name, await convertToUint8Array(image));
+    const { transcodeToWebP } = await import('@/ffmpeg/ffmpeg-webp');
     const outputs = await Promise.allSettled(
       Array.from({ length: qualityStep }, (_, i) => {
         const quality = (100 / qualityStep) * (i + 1);
-        const outputFileName = `${removeExtension(image.name)}-q${quality}.webp`;
-        return convert(ffmpeg, {
-          inputName: image.name,
-          outputName: outputFileName,
-          quality,
-          lossless,
+        return transcodeToWebP(image, { quality, lossless }).then((output) => {
+          return {
+            url: URL.createObjectURL(output),
+            quality,
+            size: output.size,
+          };
         });
       }),
     );
@@ -58,9 +43,10 @@ function App() {
       <Row gutter={[16, 16]}>
         <Col span={12}>
           <Upload.Dragger
-            accept={acceptImageTypes.join(',')}
+            accept={imageMimeTypes.join(',')}
             beforeUpload={(file) => {
-              if (!file || !acceptImageTypes.includes(file.type)) return;
+              console.log(file.type);
+              if (!file || !isImageMimeType(file.type)) return false;
               setImage(file);
               return false;
             }}
@@ -107,17 +93,15 @@ function App() {
         {outputs.map((output) => (
           <Col
             span={8}
-            key={output.name}
+            key={output.url}
           >
             <Flex vertical>
               <img
                 src={output.url}
-                alt={output.name}
+                alt=""
                 width="100%"
               />
               <Typography.Text>
-                {output.name}
-                <br />
                 {(output.size / 1024).toFixed(2)} kb
                 <br />
                 {output.quality} %
@@ -132,69 +116,8 @@ function App() {
 
 export default App;
 
-const acceptImageTypes = ['image/png', 'image/jpg', 'image/jpeg'];
-
-const convertToUint8Array = (file: File) => {
-  return new Promise<Uint8Array>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (e.target?.result instanceof ArrayBuffer) {
-        resolve(new Uint8Array(e.target.result));
-      }
-    };
-    reader.onerror = reject;
-    reader.readAsArrayBuffer(file);
-  });
-};
-
-const removeExtension = (fileName: string) => {
-  const name = fileName.split('.');
-  name.pop();
-  return name.join('.');
-};
-
-const convert = async (
-  ffmpeg: FFmpeg,
-  {
-    inputName,
-    outputName,
-    quality,
-    lossless,
-  }: {
-    inputName: string;
-    outputName: string;
-    quality: number;
-    lossless: boolean;
-  },
-): Promise<ConvertedImage> => {
-  try {
-    const runArgs = ['-i', inputName, '-c:v', 'libwebp', '-c:a', 'copy'];
-    if (lossless) {
-      runArgs.push('-lossless', '1');
-    }
-    runArgs.push('-quality', quality.toString());
-    runArgs.push(outputName);
-    console.log(runArgs);
-    await ffmpeg.exec(runArgs);
-    console.log('done');
-    const fileData = await ffmpeg.readFile(outputName);
-    const data = new Uint8Array(fileData as ArrayBuffer);
-    const blob = new Blob([data], { type: 'image/webp' });
-    return {
-      url: URL.createObjectURL(blob),
-      name: outputName,
-      quality,
-      size: blob.size,
-    };
-  } catch (e) {
-    console.error(e);
-    throw e;
-  }
-};
-
 interface ConvertedImage {
   url: string;
-  name: string;
   quality: number;
   size: number;
 }
