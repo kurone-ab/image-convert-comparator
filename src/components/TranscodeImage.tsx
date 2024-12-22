@@ -1,4 +1,5 @@
-import { transcodeToWebP } from '@/ffmpeg/ffmpeg-webp';
+import { transcodeToWebP } from '@/lib/transcode';
+import { useVips } from '@/lib/vips';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { Flex, Typography } from 'antd';
 
@@ -13,10 +14,15 @@ interface Props {
 }
 
 export default function TranscodeImage({ target }: Props) {
+  const vips = useVips();
+
   const outputRequest = useSuspenseQuery({
     queryKey: ['transcode', target],
     queryFn: async () => {
-      const output = await transcodeToWebP(target.original, { lossless: target.lossless, quality: target.quality });
+      const output = await transcodeToWebP(vips, target.original, {
+        lossless: target.lossless,
+        quality: target.quality,
+      });
       return {
         url: URL.createObjectURL(output),
         size: output.size,
