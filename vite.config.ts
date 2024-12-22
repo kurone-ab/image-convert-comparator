@@ -19,7 +19,7 @@ const viteServerConfig: Plugin = {
 export default defineConfig({
   plugins: [react(), tsconfigPaths(), viteServerConfig],
   optimizeDeps: {
-    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
+    exclude: ['wasm-vips'],
   },
   server: {
     headers: {
