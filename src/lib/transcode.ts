@@ -1,7 +1,7 @@
-import { ImageMimeType, isImageMimeType } from '@/enums/image-mime-type';
+import { IMAGE_MIME_TYPE, MIME_TYPES } from '@mantine/dropzone';
 import Vips from 'wasm-vips';
 
-export interface TranscodeOptions {
+export interface TranscodeOption {
   quality: number;
   lossless: boolean;
   preset?: Vips.ForeignWebpPreset;
@@ -20,8 +20,8 @@ const convertToUint8Array = (file: File) => {
   });
 };
 
-export const transcodeToWebP = async (vips: typeof Vips, image: File, options: TranscodeOptions) => {
-  if (!isImageMimeType(image.type)) throw new Error('Invalid image type');
+export const transcodeToWebP = async (vips: typeof Vips, image: File, options: TranscodeOption) => {
+  if (!(IMAGE_MIME_TYPE as string[]).includes(image.type)) throw new Error('Invalid image type');
 
   const imageData = await convertToUint8Array(image);
   const inputImage = vips.Image.newFromBuffer(imageData);
@@ -29,5 +29,5 @@ export const transcodeToWebP = async (vips: typeof Vips, image: File, options: T
     Q: options.quality,
     lossless: options.lossless,
   });
-  return new Blob([outputBuffer], { type: ImageMimeType.webp });
+  return new Blob([outputBuffer], { type: MIME_TYPES.webp });
 };

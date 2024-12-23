@@ -1,111 +1,149 @@
 import AsyncBoundary from '@/components/AsyncBoundary';
-import { type TranscodeTarget } from '@/components/TranscodeImage';
-import { imageMimeTypes, isImageMimeType } from '@/enums/image-mime-type';
-import { InitializedVips, VipsProvider } from '@/lib/vips';
-import { InboxOutlined } from '@ant-design/icons';
-import { Button, Col, Flex, InputNumber, message, Row, Spin, Switch, Typography, Upload } from 'antd';
+import { TranscodeOption } from '@/lib/transcode';
+import { Button, Flex, Group, Loader, NumberInput, SegmentedControl, Switch, Text, Title } from '@mantine/core';
+import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone';
+import { useForm } from '@mantine/form';
+import { notifications } from '@mantine/notifications';
+import { MediaImage, MediaImageXmark, UploadSquare } from 'iconoir-react';
 import { lazy, useState } from 'react';
-import Vips from 'wasm-vips';
 
+const VipsProvider = lazy(() => import('@/lib/vips'));
 const TranscodeImage = lazy(() => import('@/components/TranscodeImage'));
 
 export default function IndexPage() {
-  const [vips, setVips] = useState<InitializedVips>();
+  const [targetImage, setTargetImage] = useState<File>();
 
-  const [image, setImage] = useState<File | null>(null);
-  const [targets, setTargets] = useState<TranscodeTarget[]>([]);
+  const [transcodeOptions, setTranscodeOptions] = useState<TranscodeOption[]>([]);
 
-  const [lossless, setLossless] = useState(false);
-  const [qualityStep, setQualityStep] = useState(5);
+  const form = useForm({
+    mode: 'uncontrolled',
+    initialValues: {
+      qualityStep: 5,
+      lossless: false,
+      preset: '0',
+    },
+    validate: {
+      qualityStep: (value) => (value <= 0 || value > 10 ? 'Value must be between 1 and 10' : null),
+    },
+  });
 
-  const loadVips = async () => {
-    const vips = await Vips();
-    setVips(vips);
-  };
-
-  const start = async (): Promise<void> => {
-    if (!image) {
-      return void message.error('Please select an image');
-    }
-
-    if (!vips) {
-      await loadVips();
-    }
-
-    setTargets(
-      Array.from({ length: qualityStep }, (_, i) => {
-        const quality = (100 / qualityStep) * (i + 1);
-        return { original: image, quality, lossless };
+  const convert = form.onSubmit((values) => {
+    console.log(values);
+    setTranscodeOptions(
+      Array.from({ length: values.qualityStep }, (_, idx) => {
+        return {
+          lossless: values.lossless,
+          quality: (100 / values.qualityStep) * (idx + 1),
+          preset: Number(values.preset),
+        };
       }),
     );
-  };
+  });
 
   return (
-    <Flex vertical>
-      <Typography.Title level={1}>Image Convert Comparator</Typography.Title>
-      <Row gutter={[16, 16]}>
-        <Col span={12}>
-          <Upload.Dragger
-            accept={imageMimeTypes.join(',')}
-            beforeUpload={(file) => {
-              if (!file || !isImageMimeType(file.type)) return false;
-              setImage(file);
-              return false;
+    <Flex
+      direction="column"
+      p="md"
+      gap="md"
+    >
+      <Title order={1}>Image Convert Comparator</Title>
+      <form
+        onSubmit={convert}
+        className="grid grid-cols-1 md:grid-cols-2 gap-4"
+      >
+        <div>
+          <Dropzone
+            onDrop={(files) => {
+              const file = files[0];
+              setTargetImage(file);
             }}
-            showUploadList={false}
+            onReject={() => {
+              notifications.show({
+                color: 'red',
+                message: 'File type not supported',
+                autoClose: 3000,
+              });
+            }}
+            accept={IMAGE_MIME_TYPE}
           >
-            <p className="ant-upload-drag-icon">
-              <InboxOutlined />
-            </p>
-            <p className="ant-upload-text">Click or drag file to this area to upload</p>
-          </Upload.Dragger>
-        </Col>
-        <Col span={12}>
-          <Flex
-            vertical
-            align="start"
-            gap={12}
-          >
-            <Switch
-              checked={lossless}
-              onChange={setLossless}
-              checkedChildren="Lossless"
-              unCheckedChildren="Lossy"
-            />
-            <InputNumber
-              min={1}
-              max={10}
-              value={qualityStep}
-              onChange={(value) => {
-                if (value === null) return;
-                setQualityStep(value);
-              }}
-            />
-            <Button
-              type="primary"
-              onClick={start}
-              disabled={!image}
+            <Group
+              justify="center"
+              gap="xl"
+              mih={220}
+              className="pointer-events-none"
             >
-              Convert
-            </Button>
-          </Flex>
-        </Col>
-      </Row>
-      {vips ? (
-        <VipsProvider vips={vips}>
-          <Row gutter={[8, 8]}>
-            {targets.map((target) => (
-              <Col
-                span={8}
-                key={target.quality}
-                style={{ minHeight: 400 }}
+              <Dropzone.Accept>
+                <UploadSquare />
+              </Dropzone.Accept>
+              <Dropzone.Reject>
+                <MediaImageXmark />
+              </Dropzone.Reject>
+              <Dropzone.Idle>
+                <MediaImage />
+              </Dropzone.Idle>
+
+              <div>
+                <Text
+                  size="xl"
+                  inline
+                >
+                  Drag images here or click to select files
+                </Text>
+                <Text
+                  size="sm"
+                  c="dimmed"
+                  inline
+                  mt={7}
+                >
+                  Attach as many files as you like, each file should not exceed 5mb
+                </Text>
+              </div>
+            </Group>
+          </Dropzone>
+        </div>
+        <div className="flex flex-col gap-3">
+          <NumberInput
+            {...form.getInputProps('qualityStep')}
+            label="Quality Step"
+            key={form.key('qualityStep')}
+          />
+          <Switch
+            {...form.getInputProps('lossless')}
+            labelPosition="left"
+            label="Lossless"
+            key={form.key('lossless')}
+          />
+          <SegmentedControl
+            {...form.getInputProps('preset')}
+            data={[
+              { value: '0', label: 'Default' },
+              { value: '1', label: 'Picture' },
+              { value: '2', label: 'Photo' },
+              { value: '3', label: 'Drawing' },
+              { value: '4', label: 'Icon' },
+              { value: '5', label: 'Text'},
+            ]}
+          />
+          <Button
+            type="submit"
+            disabled={!targetImage}
+          >
+            Convert
+          </Button>
+        </div>
+      </form>
+      {targetImage ? (
+        <VipsProvider>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {transcodeOptions.map((option) => (
+              <AsyncBoundary
+                loading={<Loader />}
+                key={option.quality}
               >
-                <AsyncBoundary loading={<Spin />}>
-                  <TranscodeImage target={target} />
-                </AsyncBoundary>
-              </Col>
+                <TranscodeImage target={{ ...option, original: targetImage }} />
+              </AsyncBoundary>
             ))}
-          </Row>
+          </div>
         </VipsProvider>
       ) : null}
     </Flex>
